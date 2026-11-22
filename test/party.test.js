@@ -218,3 +218,14 @@ test('real pool: a locked game surfaces the reason and returns to the lobby', as
   assert.match(party.snapshot().notice, /locked/i);
   await stop();
 });
+
+test('the first countdown reading arrives immediately, not after a full poll interval', async () => {
+  const pool = stubPool();
+  pool.readTimer = async () => 7;
+  const game = createGame();
+  const party = createParty({ game, getPool: async () => pool, emit: () => {}, pollMs: 60000 });
+  party.join('a');
+  await party.start();
+  await until(() => party.snapshot().timeLeft === 7, 1000);
+  await party.stop();
+});

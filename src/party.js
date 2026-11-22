@@ -29,14 +29,16 @@ export function createParty({ game, getPool, emit, pollMs = 500 }) {
 
   function startPolling(gen) {
     stopPolling();
-    pollTimer = setInterval(async () => {
+    const tick = async () => {
       if (polling || gen !== promptGen) return;
       polling = true;
       try {
         const t = await pool.readTimer();
         if (gen === promptGen && phase() === 'prompt' && t !== timeLeft) { timeLeft = t; changed(); }
       } catch { /* the next tick will try again */ } finally { polling = false; }
-    }, pollMs);
+    };
+    tick(); // don't make the first reading wait a whole interval
+    pollTimer = setInterval(tick, pollMs);
     pollTimer.unref?.();
   }
 
