@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#061826">
+  <title>Krillion Party: host</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="host">
+  <main class="wrap">
+    <header class="hostbar">
+      <div class="brand"><span class="logo" aria-hidden="true">🦐</span><h1>Krillion Party</h1><span id="gameLabel" class="gamelabel"></span></div>
+      <button id="openSettings" class="btn secondary small" type="button">⚙ Settings</button>
+    </header>
+    <div id="banner" class="banner hidden" role="status">Lost the connection to the game. Reconnecting…</div>
+    <div id="notice" class="notice hidden" role="status"></div>
+    <div id="toast" class="toast hidden" role="alert"></div>
+
+    <div id="stage">
+      <section id="lobby" class="stage-lobby">
+        <div class="card join-card">
+          <h2>Join on your phone</h2>
+          <ol class="steps">
+            <li>Connect your phone to the <strong>same Wi-Fi</strong> as this computer</li>
+            <li>Point your phone's <strong>camera</strong> at the code</li>
+            <li>Tap the link and type your name</li>
+          </ol>
+          <div class="qrbox"><img id="qr" alt="QR code to join the game" width="300" height="300"></div>
+          <p class="muted">Or type this into your phone's browser:<br><strong id="playUrl" class="url"></strong></p>
+          <p id="noWifi" class="error hidden">This computer doesn't seem to be connected to a network. Phones can't join until it is.</p>
+        </div>
+        <div class="card players-card">
+          <h2>Players <span id="playerCount" class="muted"></span></h2>
+          <ul id="lobbyPlayers" class="chips big"></ul>
+          <p id="lobbyHint" class="muted">Waiting for players to join…</p>
+          <button id="start" class="btn big" type="button" disabled>Start game</button>
+          <p class="hint">Tip: press the space bar to start.</p>
+          <div class="check-row">
+            <button id="check" class="btn secondary small" type="button">Test setup</button>
+            <span class="hint">Checks Chrome and Krillion before everyone arrives.</span>
+          </div>
+          <ul id="checkResult" class="checklist" aria-live="polite"></ul>
+        </div>
+      </section>
+
+      <section id="starting" class="hidden stage-center">
+        <div class="spinner"></div>
+        <h2>Getting Krillion ready for <span id="startingCount"></span>…</h2>
+        <p class="muted">Opening one window per player. This takes a few seconds.</p>
+      </section>
+
+      <section id="prompt" class="hidden">
+        <div class="qtop"><span id="hostQ" class="qcount"></span><span id="hostTimer" class="bigtimer" aria-label="Seconds left">–</span></div>
+        <h2 id="hostPrompt" class="bigprompt" dir="auto"></h2>
+        <ul id="hostChips" class="chips big"></ul>
+        <p id="hostLocked" class="muted bighint"></p>
+      </section>
+
+      <section id="reveal" class="hidden">
+        <p id="hostFlash" class="flash big"></p>
+        <div class="reveal-grid">
+          <table id="hostTable" class="results">
+            <thead><tr><th>Player</th><th>Answer</th><th>Rarity</th><th>Points</th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <div class="card"><h3>Leaderboard</h3><ol id="hostBoard" class="board big"></ol></div>
+        </div>
+        <button id="next" class="btn big" type="button">Next question ▶</button>
+        <p class="hint">Tip: press the space bar to continue.</p>
+      </section>
+
+      <section id="finished" class="hidden">
+        <h2 class="bigprompt">Game over! 🎉</h2>
+        <div id="podium" class="podium"></div>
+        <ol id="finalBoard" class="board big"></ol>
+        <button id="again" class="btn big" type="button">Play again</button>
+      </section>
+    </div>
+  </main>
+
+  <dialog id="settings" aria-labelledby="settingsTitle">
+    <form id="settingsForm" autocomplete="off">
+      <h2 id="settingsTitle">Settings</h2>
+      <label for="gameNumber">Which Krillion game do you want to play?</label>
+      <input id="gameNumber" type="number" min="1" max="99999" step="1" inputmode="numeric">
+      <p class="hint">Everybody gets the same 7 questions. Game 1 is free. Other numbers need the Krillion unlock ($5 on krillion.io).</p>
+      <label for="unlockLink">Your Krillion unlock link (only for games above 1)</label>
+      <input id="unlockLink" type="password" autocomplete="off" placeholder="https://krillion.io/unlock?session_id=…">
+      <p id="linkStatus" class="status" aria-live="polite"></p>
+      <p id="settingsError" class="error" role="alert"></p>
+      <div class="dlg-actions">
+        <button class="btn" type="submit">Save settings</button>
+        <button id="removeLink" class="btn secondary" type="button">Remove link</button>
+        <button id="closeSettings" class="btn secondary" type="button">Close</button>
+      </div>
+    </form>
+  </dialog>
+  <script type="module" src="/host.js"></script>
+</body>
+</html>
