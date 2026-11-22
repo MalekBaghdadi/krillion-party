@@ -1,0 +1,28 @@
+{
+  "name": "krillion-party",
+  "version": "1.0.0",
+  "description": "Family trivia night for Krillion: scan a QR code, race to answer, play together.",
+  "type": "module",
+  "bin": {
+    "krillion-party": "src/index.js"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test",
+    "smoke": "node scripts/smoke.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "keywords": [
+    "krillion",
+    "trivia",
+    "party-game",
+    "family"
+  ],
+  "dependencies": {
+    "playwright-core": "^1.65.1",
+    "qrcode": "^1.5.4"
+  }
+}
