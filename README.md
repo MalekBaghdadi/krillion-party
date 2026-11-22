@@ -29,11 +29,11 @@ On this page click the green **Code** button, then **Download ZIP**, and unzip i
 
 ### 2. Start it
 - **Windows:** double-click **`Start Krillion Party.bat`**.
-- **Mac:** double-click **`Start Krillion Party.command`**.
-- **Either one, by typing:** open *Terminal* (Mac: press ⌘+Space, type "Terminal") or *PowerShell* (Windows), paste this and press Enter:
+- **Mac:** double-click **`Start Krillion Party.command`**. If your Mac refuses to open it, use this instead, which needs no ZIP and no permissions. Open *Terminal* (press ⌘+Space, type "Terminal", press Enter), paste this one line and press Enter:
   ```
-  npx github:MalekBaghdadi/krillion-party
+  cd ~/Downloads && curl -fsSL https://github.com/MalekBaghdadi/krillion-party/archive/refs/heads/main.tar.gz | tar xz && cd krillion-party-main && bash "Start Krillion Party.command"
   ```
+- Already comfortable with Node and git? `npx github:MalekBaghdadi/krillion-party` works too.
 
 The first start sets itself up (about a minute). Then the host screen opens in your browser.
 
@@ -75,8 +75,10 @@ On the host screen click **Test setup**. It opens two throwaway windows, checks 
 | "Chrome was not found" | Install [Google Chrome](https://www.google.com/chrome/) and start again. |
 | "Game N is locked" | Add your unlock link in **Settings**, or use game 1. |
 | Windows says "Windows protected your PC" | Click **More info**, then **Run anyway**. (The launcher is a plain text file that isn't code-signed.) |
-| Mac says the file "cannot be opened" | Right-click the file, choose **Open**, then **Open**. |
-| Mac says "permission denied" | Use the Terminal method above. Downloading a ZIP can drop the permission that lets the launcher run. |
+| Mac says the file "cannot be opened" | Right-click the file, choose **Open**, then **Open**. On macOS 15 or newer there may be no Open button: open **System Settings > Privacy & Security**, scroll down and click **Open Anyway**. Or just use the Terminal line above, which avoids this. |
+| Mac says "permission denied" | Use the Terminal line above. Downloading a ZIP can drop the permission that lets the launcher run. |
+| "Node.js is too old" | Krillion Party needs Node.js 20 or newer. Install the current LTS from [nodejs.org](https://nodejs.org/en/download). |
+| It says setup files are missing | An earlier setup was interrupted. Delete the folder named `node_modules` inside the Krillion Party folder and start again. |
 | The game acts strangely | Close the black window, start again. Run **Test setup**. |
 | Krillion changed and nothing works | Krillion Party reads Krillion's web page, so a big redesign can break it. See "For developers" below. |
 

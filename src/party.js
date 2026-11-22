@@ -1,11 +1,11 @@
 // The conductor: joins the game rules (game.js) to the Krillion sessions (pool.js).
 // Every public method is safe to call at any time; trouble becomes a `notice` on the screen.
 import { GameError } from './game.js';
-import { KrillionError } from './krillion.js';
+import { KrillionError, plainLine } from './krillion.js';
 
 const friendly = (err) => (err instanceof GameError || err instanceof KrillionError
   ? err.message
-  : `Something went wrong: ${String(err?.message ?? err).split('\n')[0]}`);
+  : `Something went wrong: ${plainLine(err)}`);
 
 export function createParty({ game, getPool, emit, pollMs = 500 }) {
   let pool = null;

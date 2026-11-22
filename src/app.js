@@ -40,7 +40,12 @@ export async function startApp({ open = true, launch = launchBrowser, getAddress
     if (!browser?.isConnected()) browser = await launch({ headless: true });
     return browser;
   };
-  const makePool = async () => createPool({ browser: await getBrowser(), config: loadConfig(), openOptions: { debugDir } });
+  const makePool = async () => createPool({
+    browser: await getBrowser(),
+    config: loadConfig(),
+    openOptions: { debugDir },
+    log: (line) => console.error(`[krillion] ${line}`), // technical detail stays in the terminal, off the TV
+  });
 
   // Which address the QR code points at: the best guess, unless the host picked another one.
   // Re-checked every few seconds because Wi-Fi can connect after the app starts.

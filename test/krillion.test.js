@@ -112,6 +112,28 @@ test('two sessions do not share storage', () => withFake({}, async (fake) => {
   await unlocked.close();
 }));
 
+test('an answer sent after the clock ran out gets the timeout back at once and never reaches the next prompt', () => withFake({ timerSeconds: 1 }, async (fake) => {
+  const s = await open(fake);
+  assert.deepEqual(await s.waitForResult(), { status: 'timeout' });
+  const started = Date.now();
+  assert.deepEqual(await s.submit('ramen'), { status: 'timeout' }); // the box is gone: must not wait for it
+  assert.ok(Date.now() - started < 1500, `took ${Date.now() - started} ms`);
+  const step = await s.next();
+  assert.equal(step.prompt.index, 1);
+  assert.equal(await s.page.locator('input.ds-input').inputValue(), ''); // the old answer was not typed into question 2
+  assert.deepEqual(await s.submit('zzz'), { status: 'rejected' }); // and the session still works
+  await s.close();
+}));
+
+test('readTimer gives up quickly when the countdown is not on screen', () => withFake({ timerSeconds: 1 }, async (fake) => {
+  const s = await open(fake);
+  await s.waitForResult();
+  const started = Date.now();
+  assert.equal(await s.readTimer(), null);
+  assert.ok(Date.now() - started < 700, `took ${Date.now() - started} ms`);
+  await s.close();
+}));
+
 test('a changed page rejects SITE_CHANGED quickly and saves a screenshot', () => withFake({ broken: true }, async (fake) => {
   const debugDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kp-debug-'));
   const started = Date.now();

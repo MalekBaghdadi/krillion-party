@@ -40,7 +40,7 @@ Scoring rules beyond the two above (Malek: "we'll think of scoring later"), the 
 - A prompt closes when every player's session has resolved (answered or timed out). The host presses NEXT to move on.
 - Leaderboard shows Krillion points and race wins side by side; no bonus points yet.
 - Late joiners during a game wait for the next game. A phone that reloads rejoins with its saved token.
-- Node 18+, ESM, no framework, plain HTML pages. Dependencies: `playwright-core`, `qrcode`.
+- Node 20+ (playwright-core refuses to load on older versions; corrected after the final review), ESM, no framework, plain HTML pages. Dependencies: `playwright-core`, `qrcode`.
 - Fake Krillion server in the tests so everything is verifiable offline; one live smoke check against the real site.
 
 ## Revisions after approval

@@ -24,6 +24,9 @@ export async function launchBrowser({ headless = true } = {}) {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// The first line of an error, without colour codes: safe to log, never a wall of text.
+export const plainLine = (err) => String(err?.message ?? err).replace(/\u001b\[[0-9;]*m/g, '').split('\n')[0].trim().slice(0, 200);
+
 // Polls until one of the locators is visible and returns its name (or null on timeout).
 // Polling beats Locator.or() here: or() can resolve to a hidden element that comes first in the DOM.
 async function waitForAny(candidates, timeoutMs) {
@@ -89,7 +92,7 @@ export class KrillionSession {
 
   async readTimer() {
     try {
-      const n = Number.parseInt(await this.page.locator('.ds-time-digits').first().innerText({ timeout: 1000 }), 10);
+      const n = Number.parseInt(await this.page.locator('.ds-time-digits').first().innerText({ timeout: 300 }), 10);
       return Number.isFinite(n) ? n : null;
     } catch {
       return null;
@@ -118,9 +121,22 @@ export class KrillionSession {
   // Types one answer. Returns {status:'rejected'} or the final result once the card shows.
   async submit(answer) {
     const { page } = this;
+    const card = page.locator('.ds-next-btn');
+    const cardUp = () => card.first().isVisible().catch(() => false);
     const input = page.locator('input.ds-input');
-    await input.fill(answer);
-    await input.press('Enter');
+    // An answer can arrive just as the clock runs out: the result card is already up and the box
+    // is gone. Never wait for a box that isn't there (it could reappear on the NEXT question and
+    // receive this answer by mistake): report what the card says instead.
+    if (await cardUp()) return this.readResult();
+    if (!(await input.first().isVisible().catch(() => false))) return { status: 'rejected' };
+    try {
+      await input.fill(answer, { timeout: 2000 });
+      await input.press('Enter', { timeout: 2000 });
+    } catch (err) {
+      if (await cardUp()) return this.readResult();
+      if (err?.name === 'TimeoutError') return { status: 'rejected' };
+      throw err;
+    }
     const rejectedNote = page.getByText(/try again/i).filter({ hasText: answer });
     const which = await waitForAny({ card: page.locator('.ds-next-btn'), rejected: rejectedNote }, Math.max(this.stepTimeoutMs, 8000));
     if (page.isClosed()) throw new KrillionError('ERROR', 'The Krillion window was closed.');

@@ -1,11 +1,17 @@
 // One Krillion session per player, all in one Chrome. The methods here never throw for a
 // single player's problem: that player just becomes {status:'error'} and everyone else carries on.
-import { openSession as realOpen } from './krillion.js';
+import { KrillionError, openSession as realOpen, plainLine } from './krillion.js';
 
-const describe = (err) => ({ code: err?.code ?? 'ERROR', message: err?.message ?? 'Something went wrong.' });
-
-export function createPool({ browser, config, open = realOpen, openOptions = {} }) {
+export function createPool({ browser, config, open = realOpen, openOptions = {}, log = () => {} }) {
   const sessions = new Map(); // player id -> KrillionSession
+
+  // Messages already written for people pass through. Anything else (a raw browser error) goes to
+  // the log and the screen gets one plain sentence.
+  function describe(err) {
+    if (err instanceof KrillionError) return { code: err.code, message: err.message };
+    log(plainLine(err));
+    return { code: 'ERROR', message: "This player's Krillion window had a problem." };
+  }
   const openOne = () => open(browser, { ...openOptions, gameNumber: config.gameNumber, unlockLink: config.unlockLink });
 
   async function drop(id) {
@@ -52,12 +58,11 @@ export function createPool({ browser, config, open = realOpen, openOptions = {} 
       }
     },
 
+    // Asks every session at once: players who already locked in have no countdown on their page and
+    // answer "null" slowly, which must not hold up the readings that matter.
     async readTimer() {
-      for (const session of sessions.values()) {
-        const t = await session.readTimer();
-        if (t !== null) return t;
-      }
-      return null;
+      const readings = await Promise.all([...sessions.values()].map((s) => s.readTimer().catch(() => null)));
+      return readings.find((t) => t !== null) ?? null;
     },
 
     async advance() {

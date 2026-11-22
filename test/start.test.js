@@ -108,7 +108,35 @@ test('package.json bin points at an executable-style script', () => {
   const bin = path.join(root, pkg.bin['krillion-party']);
   assert.equal(fs.existsSync(bin), true);
   assert.match(fs.readFileSync(bin, 'utf8'), /^#!\/usr\/bin\/env node\n/);
-  assert.equal(pkg.engines.node, '>=18');
+  assert.equal(pkg.engines.node, '>=20'); // playwright-core refuses to load on Node 18 and 19
+});
+
+test('both launchers insist on Node 20 and repair a half-finished install', () => {
+  const mac = fs.readFileSync(path.join(root, 'Start Krillion Party.command'), 'utf8');
+  const win = fs.readFileSync(path.join(root, 'Start Krillion Party.bat'), 'utf8');
+  assert.match(mac, /-lt 20\b/);
+  assert.match(win, /LSS 20\b/);
+  assert.match(mac, /node_modules\/playwright-core/);
+  assert.match(mac, /node_modules\/qrcode/);
+  assert.match(win, /node_modules\\playwright-core/);
+  assert.match(win, /node_modules\\qrcode/);
+  assert.match(fs.readFileSync(path.join(root, 'src', 'index.js'), 'utf8'), /< 20/);
+});
+
+test('missing dependencies give a plain-English fix instead of a stack trace', async () => {
+  const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'kp-bare-'));
+  fs.cpSync(path.join(root, 'src'), path.join(bare, 'src'), { recursive: true });
+  fs.cpSync(path.join(root, 'public'), path.join(bare, 'public'), { recursive: true });
+  fs.copyFileSync(path.join(root, 'package.json'), path.join(bare, 'package.json')); // but no node_modules
+  const child = spawn(process.execPath, [path.join(bare, 'src', 'index.js')], { env: { ...process.env, KRILLION_PARTY_HOME: home, KRILLION_PARTY_NO_OPEN: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
+  let out = '';
+  child.stdout.on('data', (c) => { out += c; });
+  child.stderr.on('data', (c) => { out += c; });
+  const code = await new Promise((resolve) => { child.on('exit', resolve); setTimeout(() => { child.kill(); resolve('hung'); }, 15000); });
+  assert.equal(code, 1, out);
+  assert.match(out, /node_modules/);
+  assert.match(out, /delete/i);
+  assert.equal(/ERR_MODULE_NOT_FOUND|at .*\.js:\d+/.test(out), false, 'no stack trace for a non-technical user');
 });
 
 test('the phone address comes from the network ranking, can be switched by the host, and survives refreshes', async () => {
