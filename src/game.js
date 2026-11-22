@@ -79,7 +79,7 @@ export function createGame({ now = Date.now, maxPlayers = 8, maxAttempts = 5 } =
     r.attempts += 1;
     r.tried.add(key);
     r.pending = { answer: clean, receivedAt: now() };
-    return { ok: true, receivedAt: r.pending.receivedAt };
+    return { ok: true, receivedAt: r.pending.receivedAt, answer: clean };
   }
 
   function recordResult(playerId, result) {
@@ -87,6 +87,12 @@ export function createGame({ now = Date.now, maxPlayers = 8, maxAttempts = 5 } =
     if (!p) return;
     if (!p.round) p.round = freshRound(); // an error can arrive before the first prompt opens
     const r = p.round;
+    if (result.status === 'error') {
+      p.errored = true; // sticks even after this prompt resolved: the session is gone for the next ones
+      if (!r.status) { r.status = 'error'; r.message = result.message ?? 'Something went wrong.'; }
+      r.pending = null;
+      return;
+    }
     if (r.status) return; // first outcome wins; later duplicates are ignored
     switch (result.status) {
       case 'rejected':
@@ -101,12 +107,6 @@ export function createGame({ now = Date.now, maxPlayers = 8, maxAttempts = 5 } =
         break;
       case 'timeout':
         r.status = 'timeout';
-        r.pending = null;
-        break;
-      case 'error':
-        p.errored = true;
-        r.status = 'error';
-        r.message = result.message ?? 'Something went wrong.';
         r.pending = null;
         break;
     }

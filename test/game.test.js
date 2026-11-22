@@ -80,9 +80,10 @@ test('recordAttempt: ok, invalid, busy, repeat, too-many, resolved, closed', () 
   assert.deepEqual(g.recordAttempt(a, '   '), { ok: false, reason: 'invalid' });
   assert.deepEqual(g.recordAttempt(a, 'x'.repeat(61)), { ok: false, reason: 'invalid' });
 
-  const first = g.recordAttempt(a, 'pho');
+  const first = g.recordAttempt(a, '  pho  ');
   assert.equal(first.ok, true);
   assert.equal(first.receivedAt, c.now());
+  assert.equal(first.answer, 'pho'); // the cleaned text is what gets typed into Krillion
   assert.deepEqual(g.recordAttempt(a, 'pad thai'), { ok: false, reason: 'busy' });
 
   g.recordResult(a, { status: 'rejected' });
@@ -110,6 +111,20 @@ test('recordResult is idempotent once resolved', () => {
   const r = g.closePrompt();
   assert.equal(r.entries[0].points, 10);
   assert.equal(r.entries[0].status, 'accepted');
+});
+
+test('a session that dies after answering still marks the player errored for later prompts', () => {
+  const { g, ids } = started(['a', 'b']);
+  g.recordAttempt(ids[0], 'ramen');
+  g.recordResult(ids[0], accepted(10));
+  g.recordResult(ids[0], { status: 'error', message: 'Chrome closed' });
+  g.recordResult(ids[1], { status: 'timeout' });
+  const r = g.closePrompt();
+  assert.equal(r.entries[0].status, 'accepted'); // this prompt's result stands
+  g.openPrompt({ index: 1, total: 7, text: 'Next' });
+  assert.equal(g.snapshot().players[0].errored, true);
+  g.recordResult(ids[1], { status: 'timeout' });
+  assert.equal(g.allResolved(), true);
 });
 
 test('winner is the earliest receivedAt even if its result is recorded last', () => {
