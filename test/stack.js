@@ -14,12 +14,13 @@ const { startFake } = await import('./fake-krillion.js');
 
 const publicDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 
-export async function startStack({ browser, fakeOpts = {}, config = {} } = {}) {
+export async function startStack({ browser, fakeOpts = {}, config = {}, addresses = [] } = {}) {
   const fake = await startFake(fakeOpts);
   const cfg = () => ({ ...loadConfig(), ...config });
   const openOptions = { baseUrl: fake.url, stepTimeoutMs: 4000 };
   const game = createGame();
   let server;
+  let chosen = addresses[0] ?? null;
   const party = createParty({
     game,
     getPool: async () => createPool({ browser, config: cfg(), openOptions }),
@@ -31,7 +32,9 @@ export async function startStack({ browser, fakeOpts = {}, config = {} } = {}) {
     getConfig: cfg,
     saveConfig,
     runCheck: () => createPool({ browser, config: cfg(), openOptions }).check(),
-    lan: null,
+    lan: () => chosen,
+    addresses: () => addresses,
+    setLan: (ip) => { chosen = ip; },
     publicDir,
   });
   const port = await server.listen(0);

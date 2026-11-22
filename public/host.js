@@ -7,6 +7,7 @@ let settings = null;
 let busy = false;
 let lastPhase = null;
 let toastTimer = null;
+let shownPlayUrl = null;
 
 function toast(message) {
   $('toast').textContent = message;
@@ -27,7 +28,18 @@ async function loadSettings() {
     settings = await (await fetch('/api/host/settings')).json();
   } catch { return; }
   $('playUrl').textContent = settings.playUrl.replace(/^http:\/\//, '');
-  $('qr').src = `/qr.svg?${Date.now()}`;
+  if (settings.playUrl !== shownPlayUrl) { // only reload the QR when the address really changed
+    shownPlayUrl = settings.playUrl;
+    $('qr').src = `/qr.svg?${Date.now()}`;
+  }
+  $('otherAddresses').classList.toggle('hidden', settings.addresses.length < 2);
+  $('addressButtons').replaceChildren(...settings.addresses.map((ip) => {
+    const pick = el('button', 'btn secondary small addr', ip);
+    pick.type = 'button';
+    pick.setAttribute('aria-pressed', String(ip === settings.address));
+    pick.addEventListener('click', async () => { await postJson('/api/host/address', { address: ip }); loadSettings(); });
+    return pick;
+  }));
   $('noWifi').classList.toggle('hidden', settings.addresses.length > 0);
   $('gameLabel').textContent = `Game ${settings.gameNumber}`;
   $('linkStatus').textContent = settings.hasUnlockLink ? '✔ Unlock link saved' : 'No unlock link saved';
@@ -190,5 +202,8 @@ $('settingsForm').addEventListener('submit', (e) => {
   saveSettings(patch);
 });
 $('removeLink').addEventListener('click', () => saveSettings({ unlockLink: '' }));
+
+// Wi-Fi can come and go while the app is open: keep the address fresh while waiting in the lobby.
+setInterval(() => { if (snap?.phase === 'lobby' && !document.hidden) loadSettings(); }, 5000);
 
 connect();

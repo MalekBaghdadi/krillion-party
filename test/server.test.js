@@ -80,7 +80,7 @@ test('isLocalRequest accepts loopback, refuses LAN addresses, foreign Origin and
 });
 
 test('host routes answer 403 when requested through the LAN address', { skip: !lanAddresses()[0] && 'no LAN address on this machine' }, async () => {
-  for (const [m, p] of [['GET', '/api/host/settings'], ['POST', '/api/host/settings'], ['POST', '/api/host/start'], ['POST', '/api/host/next'], ['POST', '/api/host/again'], ['POST', '/api/host/remove'], ['POST', '/api/host/check']]) {
+  for (const [m, p] of [['GET', '/api/host/settings'], ['POST', '/api/host/settings'], ['POST', '/api/host/start'], ['POST', '/api/host/next'], ['POST', '/api/host/again'], ['POST', '/api/host/remove'], ['POST', '/api/host/check'], ['POST', '/api/host/address']]) {
     const r = await request(m, lan, p, { body: m === 'POST' ? {} : undefined });
     assert.equal(r.status, 403, `${m} ${p}`);
   }
@@ -222,4 +222,42 @@ test('SSE sends a per-viewer snapshot at connect and again after broadcast', asy
   assert.equal(events[0].you.id, 'p1');
   const anon = await readSse('/api/events');
   assert.equal(JSON.parse(anon.split('\n\n').find((b) => b.startsWith('data:')).slice(5)).you, null);
+});
+
+test('the host can pick which network address the QR code points at', async () => {
+  let chosen = '192.168.1.5';
+  const second = createServer({
+    party,
+    getConfig: loadConfig,
+    saveConfig,
+    runCheck: async () => ({ ok: true, lines: [] }),
+    lan: () => chosen,
+    addresses: () => ['192.168.1.5', '10.0.0.4'],
+    setLan: (ip) => { chosen = ip; },
+    publicDir,
+  });
+  const p = await second.listen(0);
+  const call = (method, route, body) => new Promise((resolve, reject) => {
+    const payload = body ? JSON.stringify(body) : null;
+    const req = http.request({ host: '127.0.0.1', port: p, method, path: route, headers: payload ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(payload) } : {} }, (res) => {
+      let text = '';
+      res.setEncoding('utf8');
+      res.on('data', (c) => { text += c; });
+      res.on('end', () => resolve({ status: res.statusCode, json: JSON.parse(text) }));
+    });
+    req.on('error', reject);
+    if (payload) req.write(payload);
+    req.end();
+  });
+  try {
+    const before = await call('GET', '/api/host/settings');
+    assert.equal(before.json.playUrl, `http://192.168.1.5:${p}/play`);
+    assert.deepEqual(before.json.addresses, ['192.168.1.5', '10.0.0.4']);
+    const picked = await call('POST', '/api/host/address', { address: '10.0.0.4' });
+    assert.equal(picked.status, 200);
+    assert.equal(picked.json.playUrl, `http://10.0.0.4:${p}/play`);
+    const refused = await call('POST', '/api/host/address', { address: '8.8.8.8' });
+    assert.equal(refused.status, 400);
+    assert.equal(chosen, '10.0.0.4'); // an address that isn't this computer's is never accepted
+  } finally { await second.close(); }
 });

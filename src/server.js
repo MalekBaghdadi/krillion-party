@@ -46,13 +46,17 @@ async function readJson(req) {
   return data;
 }
 
-export function createServer({ party, getConfig, saveConfig, runCheck, lan, publicDir }) {
+// `lan` is the address the QR code points at: a string, or a function when it can change while running.
+// `addresses` lists the choices offered to the host; `setLan(ip)` records their pick.
+export function createServer({ party, getConfig, saveConfig, runCheck, lan, addresses = lanAddresses, setLan, publicDir }) {
   let port = 0;
   const clients = new Set(); // open event streams: {res, token}
   let pingTimer = null;
   let checking = false;
 
-  const playUrl = () => `http://${lan ?? 'localhost'}:${port}/play`;
+  const currentLan = () => (typeof lan === 'function' ? lan() : lan);
+  const playUrl = () => `http://${currentLan() ?? 'localhost'}:${port}/play`;
+  const hostSettings = () => ({ ...publicConfig(getConfig()), playUrl: playUrl(), addresses: addresses(), address: currentLan() });
 
   const send = (res, status, body, headers = {}) => {
     res.writeHead(status, { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', ...headers });
@@ -91,15 +95,18 @@ export function createServer({ party, getConfig, saveConfig, runCheck, lan, publ
     if (!isLocalRequest(req)) return sendJson(res, 403, { message: 'Only the host computer can do that.' });
     const route = `${req.method} ${url.pathname}`;
     if (route === 'GET /api/host/settings') {
-      return sendJson(res, 200, { ...publicConfig(getConfig()), playUrl: playUrl(), addresses: lanAddresses() });
+      return sendJson(res, 200, hostSettings());
     }
     const body = req.method === 'POST' ? await readJson(req) : {};
     switch (route) {
       case 'POST /api/host/settings': {
-        let saved;
-        try { saved = saveConfig({ gameNumber: body.gameNumber, unlockLink: body.unlockLink }); } catch (err) { throw new HttpError(400, err.message); }
-        return sendJson(res, 200, { ...publicConfig(saved), playUrl: playUrl(), addresses: lanAddresses() });
+        try { saveConfig({ gameNumber: body.gameNumber, unlockLink: body.unlockLink }); } catch (err) { throw new HttpError(400, err.message); }
+        return sendJson(res, 200, hostSettings());
       }
+      case 'POST /api/host/address':
+        if (!setLan || typeof body.address !== 'string' || !addresses().includes(body.address)) throw new HttpError(400, 'That address is not available on this computer.');
+        setLan(body.address);
+        return sendJson(res, 200, hostSettings());
       case 'POST /api/host/start':
         await party.start();
         return sendJson(res, 200, { ok: true });

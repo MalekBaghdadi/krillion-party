@@ -190,3 +190,7 @@ dialog input[type="number"] { margin-bottom: 4px; }
   .stage-lobby, .reveal-grid { grid-template-columns: 1fr; }
   .bigtimer { min-width: 84px; height: 84px; font-size: 2.6rem; }
 }
+
+.addr-row { display: inline-flex; flex-wrap: wrap; gap: 8px; margin-inline-start: 6px; vertical-align: middle; }
+.addr-row .addr { min-height: 36px; padding: 4px 14px; font-size: 0.95rem; }
+.addr-row .addr[aria-pressed="true"] { border-color: var(--teal); color: var(--teal); }

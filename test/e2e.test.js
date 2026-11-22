@@ -168,3 +168,15 @@ test('Start with nobody joined explains what to do instead of failing silently',
   assert.equal(await host.getByRole('button', { name: /start game/i }).isDisabled(), true);
   await host.getByText(/waiting for players/i).first().waitFor();
 }));
+
+test('the host can switch the address the QR code uses when phones cannot connect', () => setup({ addresses: ['192.168.1.5', '10.0.0.4'] }, [], async ({ host }) => {
+  await waitText(host, '#playUrl', /192\.168\.1\.5:\d+\/play/);
+  await host.getByRole('button', { name: '10.0.0.4' }).click();
+  await waitText(host, '#playUrl', /10\.0\.0\.4:\d+\/play/);
+  assert.equal(await host.getByRole('button', { name: '10.0.0.4' }).getAttribute('aria-pressed'), 'true');
+}));
+
+test('with a single network address the picker stays out of the way', () => setup({ addresses: ['192.168.1.5'] }, [], async ({ host }) => {
+  await waitText(host, '#playUrl', /192\.168\.1\.5/);
+  assert.equal(await host.locator('#otherAddresses').isVisible(), false);
+}));
