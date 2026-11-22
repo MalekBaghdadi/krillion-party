@@ -15,7 +15,7 @@ Observed on 2026-11-22.
 | Countdown | `.ds-time-digits` (whole seconds) |
 | Score | `.ds-score-num` |
 | Accepted card | `.tname` (tier, e.g. PLANKTON), `.tans` (the answer, in curly quotes), `.tpts b` ("+10 PTS"), `.tsub` (flavour text) |
-| Timeout card | the text `NOTHING LANDED` (class not relied on) |
+| Timeout card | the same card as an accepted answer, with `.tname` = `NOTHING LANDED` (so check the tier text before treating a card as accepted) |
 | Next button | `.ds-next-btn` ("DESCEND ▼", on the last prompt "SURFACE ▲") |
 | Rejected answer | a message containing the answer and `no echo. try again`; the prompt stays open |
 | Locked game | the text `UNLOCK UNLIMITED` and no `.ds-begin-btn` |

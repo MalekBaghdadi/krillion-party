@@ -100,10 +100,11 @@ function showAccepted(raw, hit) {
   wireNext();
 }
 
-// Different markup on purpose: the driver must recognise a timeout by its text, not a class.
+// The real page reuses the accepted card for a timeout: same classes, tier text "NOTHING LANDED".
 function showTimeout() {
   app.innerHTML = hud() + nextLabel() +
-    '<div class="tmiss"><div class="tmiss-h">NOTHING LANDED</div><div>—</div><div>+0 PTS</div><div>the clock beat you to it.</div></div>' + nextBtn();
+    '<div class="tag"><div class="tname">NOTHING LANDED</div><div class="tans">—</div>' +
+    '<div class="tpts"><b>+0 PTS</b></div><div class="tsub">the clock beat you to it.</div></div>' + nextBtn();
   wireNext();
 }
 
