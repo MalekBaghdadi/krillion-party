@@ -32,8 +32,12 @@ export const plainLine = (err) => String(err?.message ?? err).replace(/\u001b\[[
 async function waitForAny(candidates, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
-    for (const [name, locator] of Object.entries(candidates)) {
-      if (await locator.first().isVisible().catch(() => false)) return name;
+    for (const [name, candidate] of Object.entries(candidates)) {
+      // a candidate is either a locator (is it visible?) or a function returning true/false
+      const hit = typeof candidate === 'function'
+        ? await candidate().catch(() => false)
+        : await candidate.first().isVisible().catch(() => false);
+      if (hit) return name;
     }
     if (Date.now() >= deadline) return null;
     await sleep(100);
@@ -138,9 +142,22 @@ export class KrillionSession {
       throw err;
     }
     const rejectedNote = page.getByText(/try again/i).filter({ hasText: answer });
-    const which = await waitForAny({ card: page.locator('.ds-next-btn'), rejected: rejectedNote }, Math.max(this.stepTimeoutMs, 8000));
+    // A near-miss is not accepted: Krillion puts its closest answer in the box, shows "submit again
+    // to confirm", and waits. Both signs are required, so neither a leftover hint from an earlier
+    // try (box unchanged) nor an accepted answer (no hint) is mistaken for one.
+    const hint = page.locator('.ds-correction-hint').or(page.getByText(/submit again to confirm/i));
+    const typed = answer.trim().toLowerCase();
+    const rewritten = async () => {
+      if (!(await hint.first().isVisible().catch(() => false))) return false;
+      const value = (await input.first().inputValue({ timeout: 300 }).catch(() => '')).trim();
+      return value !== '' && value.toLowerCase() !== typed;
+    };
+    const which = await waitForAny({ card, rejected: rejectedNote, suggestion: rewritten }, Math.max(this.stepTimeoutMs, 8000));
     if (page.isClosed()) throw new KrillionError('ERROR', 'The Krillion window was closed.');
     if (which === 'card') return this.readResult();
+    if (which === 'suggestion') {
+      return { status: 'suggestion', typed: answer, suggestion: (await input.first().inputValue({ timeout: 1000 })).trim() };
+    }
     return { status: 'rejected' }; // also covers "nothing recognisable happened": the prompt is still open
   }
 

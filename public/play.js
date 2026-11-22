@@ -10,6 +10,7 @@ let snap = null;
 let source = null;
 let sending = false;
 let promptKey = null;
+let suggestionKey = null;
 let wasRemoved = false;
 let flash = null; // a refusal from the server ("too late", "already tried that") until the player types again
 
@@ -64,6 +65,9 @@ function statusFor(you) {
     case 'timeout': return { text: "Time's up! The next question is coming.", tone: 'bad' };
     case 'error': return { text: "Your Krillion window had a problem. You'll be back on the next question.", tone: 'bad' };
     default:
+      if (you.suggestion) { // Krillion's closest answer: the box already holds it, Send confirms
+        return { text: `Did you mean “${you.suggestion.text}”? Tap Send to use it, or change it.`, tone: 'hint' };
+      }
       if (you.rejected) {
         return you.attemptsLeft > 0
           ? { text: `“${you.rejected}” wasn’t recognised. Try another! (${you.attemptsLeft} ${you.attemptsLeft === 1 ? 'try' : 'tries'} left)`, tone: 'bad' }
@@ -85,9 +89,20 @@ function renderQuestion() {
   const key = `${prompt.index}:${prompt.text}`;
   if (key !== promptKey) { // a new question: start with an empty box
     promptKey = key;
+    suggestionKey = null;
     flash = null;
     $('answer').value = '';
     if (you.status === 'idle') $('answer').focus({ preventScroll: true });
+  }
+  // A new suggestion: put it in the box (only if they haven't started typing something else).
+  const s = you.suggestion;
+  const sKey = s ? `${s.typed}>${s.text}` : null;
+  if (sKey !== suggestionKey) {
+    suggestionKey = sKey;
+    if (s && $('answer').value.trim().toLowerCase() === s.typed.toLowerCase()) {
+      $('answer').value = s.text;
+      if (document.activeElement === $('answer')) $('answer').select();
+    }
   }
   const canType = you.status === 'idle' && you.attemptsLeft > 0;
   $('answer').disabled = !canType;

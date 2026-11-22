@@ -50,6 +50,7 @@ Each question, everyone types an answer. The host presses **Next question** (or 
 - **⚡ The race:** the first player whose answer Krillion accepts wins the question.
 - **Points:** each player is also scored by Krillion itself. Rarer answers are worth more (a very common answer is worth 10, the rarest up to 100). The leaderboard shows both points and ⚡ wins.
 - A wrong or unknown answer doesn't use up your turn: try again (up to 5 tries per question).
+- Typos are forgiven the way Krillion forgives them: if your answer is a little off, Krillion suggests its closest answer ("Did you mean Ramen?"). The box fills in with the suggestion, and you tap **Send** again to confirm it, or change it. A suggestion doesn't count as a try.
 - Behind the scenes the host computer opens one hidden Krillion window per player, so everyone really plays their own game.
 
 ## Playing other Krillion games

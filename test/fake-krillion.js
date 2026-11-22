@@ -18,6 +18,7 @@ export async function startFake(opts = {}) {
   const cfg = {
     prompts: opts.prompts ?? DEFAULT_PROMPTS,
     accepted: opts.accepted ?? DEFAULT_ACCEPTED,
+    corrections: opts.corrections ?? { raman: 'ramen', ramenn: 'ramen', phoo: 'pho' }, // typed -> the answer Krillion suggests
     timerSeconds: opts.timerSeconds ?? 25,
     unlockToken: opts.unlockToken ?? 'cs_test',
     broken: Boolean(opts.broken),
@@ -79,9 +80,20 @@ function showPrompt() {
   }, 1000);
 }
 
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+
 function submit(raw) {
   if (!raw || resolved) return;
   const hit = CFG.accepted[raw.toLowerCase()];
+  const fix = CFG.corrections[raw.toLowerCase()];
+  if (!hit && fix) {
+    // A near-miss: the real page puts the closest answer in the box and waits for a second submit.
+    // The notice stays up until the next result, like the real one (a stale hint must not confuse the driver).
+    const shown = cap(fix);
+    document.querySelector('input.ds-input').value = shown;
+    document.getElementById('toast').innerHTML = '<span>“' + esc(raw) + '”</span><span class="ds-correction-arrow">→</span><span class="sr-only">corrects to</span><b>“' + esc(shown) + '”</b><span class="ds-correction-hint">submit again to confirm · or edit</span>';
+    return;
+  }
   if (!hit) { document.getElementById('toast').textContent = '"' + raw + '": no echo. try again'; return; }
   resolved = true; clearInterval(timer);
   setTimeout(() => showAccepted(raw, hit), 300);

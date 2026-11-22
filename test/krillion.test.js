@@ -46,6 +46,26 @@ test('submit rejected leaves the prompt open and a retry works', () => withFake(
   await s.close();
 }));
 
+test('a near-miss comes back as a suggestion, quickly, and confirming it is accepted', () => withFake({}, async (fake) => {
+  const s = await open(fake);
+  const started = Date.now();
+  assert.deepEqual(await s.submit('raman'), { status: 'suggestion', typed: 'raman', suggestion: 'Ramen' });
+  assert.ok(Date.now() - started < 3000, `took ${Date.now() - started} ms (it used to wait for the 8 s fallback)`);
+  const confirmed = await s.submit('Ramen');
+  assert.equal(confirmed.status, 'accepted');
+  assert.equal(confirmed.tier, 'PLANKTON');
+  await s.close();
+}));
+
+test('changing a suggested answer to a different valid one is not mistaken for another suggestion', () => withFake({}, async (fake) => {
+  const s = await open(fake);
+  assert.equal((await s.submit('raman')).status, 'suggestion'); // its hint stays on screen
+  const next = await s.submit('pho');
+  assert.equal(next.status, 'accepted');
+  assert.equal(next.tier, 'RARE');
+  await s.close();
+}));
+
 test('waitForResult resolves timeout when the clock runs out', () => withFake({ timerSeconds: 1 }, async (fake) => {
   const s = await open(fake);
   assert.deepEqual(await s.waitForResult(), { status: 'timeout' });

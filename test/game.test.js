@@ -194,6 +194,38 @@ test('snapshot hides answers until reveal and shows only the viewer their own st
   assert.equal(JSON.stringify(g.snapshot(ids[1]).reveal).includes('Pho'), true);
 });
 
+test('a suggestion leaves the player open, costs no try, and is offered back to that player only', () => {
+  const { g, ids } = started(['a', 'b'], { maxAttempts: 2 });
+  assert.equal(g.recordAttempt(ids[0], 'raman').ok, true);
+  g.recordResult(ids[0], { status: 'suggestion', typed: 'raman', suggestion: 'Ramen' });
+  const you = g.snapshot(ids[0]).you;
+  assert.deepEqual(you.suggestion, { typed: 'raman', text: 'Ramen' });
+  assert.equal(you.status, 'idle');
+  assert.equal(you.rejected, null);
+  assert.equal(you.attemptsLeft, 2); // the suggestion was free
+  assert.equal(JSON.stringify(g.snapshot(ids[1])).includes('Ramen'), false); // nobody else sees it
+  assert.equal(g.snapshot().players[0].locked, false); // and it is not an answer yet
+
+  assert.equal(g.recordAttempt(ids[0], 'phoo').ok, true); // a second suggestion is free too
+  g.recordResult(ids[0], { status: 'suggestion', typed: 'phoo', suggestion: 'Pho' });
+  assert.equal(g.recordAttempt(ids[0], 'x1').ok, true);
+  g.recordResult(ids[0], { status: 'rejected' });
+  assert.equal(g.snapshot(ids[0]).you.suggestion, null); // a rejection replaces the suggestion
+  assert.equal(g.recordAttempt(ids[0], 'x2').ok, true);
+  g.recordResult(ids[0], { status: 'rejected' });
+  assert.deepEqual(g.recordAttempt(ids[0], 'x3'), { ok: false, reason: 'too-many' }); // only the two rejections counted
+});
+
+test('answering clears the suggestion, and accepting the suggested answer wins as usual', () => {
+  const { g, ids } = started(['a']);
+  g.recordAttempt(ids[0], 'raman');
+  g.recordResult(ids[0], { status: 'suggestion', typed: 'raman', suggestion: 'Ramen' });
+  assert.equal(g.recordAttempt(ids[0], 'Ramen').ok, true);
+  assert.equal(g.snapshot(ids[0]).you.suggestion, null);
+  g.recordResult(ids[0], accepted(10));
+  assert.equal(g.closePrompt().winnerId, ids[0]);
+});
+
 test('the viewer sees their last rejected answer', () => {
   const { g, ids } = started(['a']);
   g.recordAttempt(ids[0], 'zzz');

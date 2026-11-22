@@ -91,6 +91,22 @@ test('a rejected answer lets the player retry and does not count', async () => {
   await stop();
 });
 
+test('a near-miss is offered back as a suggestion, and confirming it locks the answer in', async () => {
+  const { party, ids, phase, stop } = await realParty({ timerSeconds: 20 }, ['Ann']);
+  await party.start();
+  await until(() => phase() === 'prompt');
+  await party.answer(ids[0], 'raman');
+  const you = party.snapshot(ids[0]).you;
+  assert.deepEqual(you.suggestion, { typed: 'raman', text: 'Ramen' });
+  assert.equal(you.status, 'idle');
+  assert.equal(phase(), 'prompt'); // a suggestion is not an answer: nothing is decided yet
+  await party.answer(ids[0], 'Ramen');
+  await until(() => phase() === 'reveal');
+  assert.equal(party.snapshot().players[0].score, 10);
+  assert.equal(party.snapshot().reveal.winnerId, ids[0]);
+  await stop();
+});
+
 test('race winner is the earliest typist even when its result arrives later', async () => {
   const pool = stubPool({
     submit: async (id, answer) => {

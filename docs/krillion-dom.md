@@ -18,6 +18,7 @@ Observed on 2026-11-22.
 | Timeout card | the same card as an accepted answer, with `.tname` = `NOTHING LANDED` (so check the tier text before treating a card as accepted) |
 | Next button | `.ds-next-btn` ("DESCEND ▼", on the last prompt "SURFACE ▲") |
 | Rejected answer | a message containing the answer and `no echo. try again`; the prompt stays open |
+| Near-miss ("raman") | NOT accepted. The box is rewritten to Krillion's closest answer ("Ramen") and a notice appears: `“raman” → corrects to “Ramen”`, `.ds-correction-hint` = "submit again to confirm · or edit". Submitting again accepts it. The driver reports `{status:'suggestion'}` only when the hint is visible **and** the box differs from what was typed. |
 | Locked game | the text `UNLOCK UNLIMITED` and no `.ds-begin-btn` |
 
 ## Behaviour

@@ -11,7 +11,7 @@ const MAX_ANSWER = 60;
 const tidy = (s) => String(s ?? '').replace(/[\u0000-\u001f\u007f-\u009f]/g, '').replace(/\s+/g, ' ').trim();
 const clip = (s, n) => Array.from(s).slice(0, n).join('').trim(); // code points, so emoji count as one
 
-const freshRound = () => ({ attempts: 0, tried: new Set(), pending: null, rejected: null, status: null, result: null, receivedAt: null, message: null });
+const freshRound = () => ({ attempts: 0, tried: new Set(), pending: null, rejected: null, suggestion: null, status: null, result: null, receivedAt: null, message: null });
 
 export function createGame({ now = Date.now, maxPlayers = 8, maxAttempts = 5 } = {}) {
   let phase = 'lobby'; // lobby | starting | prompt | reveal | finished
@@ -78,6 +78,7 @@ export function createGame({ now = Date.now, maxPlayers = 8, maxAttempts = 5 } =
     if (r.tried.has(key)) return { ok: false, reason: 'repeat' };
     r.attempts += 1;
     r.tried.add(key);
+    r.suggestion = null; // answering again answers the suggestion
     r.pending = { answer: clean, receivedAt: now() };
     return { ok: true, receivedAt: r.pending.receivedAt, answer: clean };
   }
@@ -97,6 +98,13 @@ export function createGame({ now = Date.now, maxPlayers = 8, maxAttempts = 5 } =
     switch (result.status) {
       case 'rejected':
         r.rejected = r.pending?.answer ?? null;
+        r.suggestion = null;
+        r.pending = null;
+        break;
+      case 'suggestion': // Krillion offered its closest answer: not an answer yet, and it costs no try
+        r.suggestion = { typed: result.typed, text: result.suggestion };
+        r.rejected = null;
+        r.attempts = Math.max(0, r.attempts - 1);
         r.pending = null;
         break;
       case 'accepted':
@@ -151,6 +159,7 @@ export function createGame({ now = Date.now, maxPlayers = 8, maxAttempts = 5 } =
       status,
       answer: r?.result?.answer ?? null,
       rejected: r?.rejected ?? null,
+      suggestion: r?.suggestion ?? null,
       attemptsLeft: r ? Math.max(0, maxAttempts - r.attempts) : maxAttempts,
     };
   }

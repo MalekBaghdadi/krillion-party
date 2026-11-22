@@ -194,3 +194,4 @@ dialog input[type="number"] { margin-bottom: 4px; }
 .addr-row { display: inline-flex; flex-wrap: wrap; gap: 8px; margin-inline-start: 6px; vertical-align: middle; }
 .addr-row .addr { min-height: 36px; padding: 4px 14px; font-size: 0.95rem; }
 .addr-row .addr[aria-pressed="true"] { border-color: var(--teal); color: var(--teal); }
+.status.hint { color: var(--gold); }

@@ -88,6 +88,23 @@ test('an unknown answer says so and can be retried; an accepted one locks in', (
   await shot(a, '5-locked');
 }));
 
+test('a near-miss shows Krillion\'s suggestion with the box filled in, and Send confirms it', () => withStack({ fakeOpts: { timerSeconds: 20 } }, async (stack, phone) => {
+  const page = await phone();
+  await join(page, 'Sam');
+  await page.locator('.chip').first().waitFor();
+  await stack.host('/api/host/start');
+  await page.getByText('Name a noodle dish').waitFor();
+  await page.getByLabel('Your answer').fill('raman');
+  await page.getByRole('button', { name: 'Send' }).click();
+  await page.getByText(/Did you mean/i).waitFor();
+  assert.match(await page.locator('#status').innerText(), /“Ramen”/);
+  assert.equal(await page.getByLabel('Your answer').inputValue(), 'Ramen'); // ready to confirm
+  assert.equal(await page.getByLabel('Your answer').isEnabled(), true);
+  await shot(page, '4b-suggestion');
+  await page.getByRole('button', { name: 'Send' }).click();
+  await page.getByText(/Locked in/i).waitFor();
+}));
+
 test('the reveal shows your answer, tier, points and who was first', () => withStack({ fakeOpts: { timerSeconds: 20 } }, async (stack, phone) => {
   const a = await phone();
   const b = await phone();

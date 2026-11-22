@@ -39,6 +39,21 @@ test('rejects unknown answers without ending the prompt', async () => {
   await ctx.close(); await fake.close();
 });
 
+test('a near-miss is rewritten into the box and needs a second submit, like the real page', async () => {
+  const fake = await startFake();
+  const { ctx, page } = await openGame(fake);
+  await page.locator('.ds-begin-btn').click({ force: true });
+  await page.locator('input.ds-input').fill('raman');
+  await page.keyboard.press('Enter');
+  await page.locator('.ds-correction-hint').waitFor();
+  assert.equal(await page.locator('input.ds-input').inputValue(), 'Ramen');
+  assert.equal(await page.locator('.ds-next-btn').count(), 0); // not accepted yet
+  await page.keyboard.press('Enter');
+  await page.locator('.ds-next-btn').waitFor();
+  assert.equal(await page.locator('.tname').innerText(), 'PLANKTON');
+  await ctx.close(); await fake.close();
+});
+
 test('times out when the clock runs out', async () => {
   const fake = await startFake({ timerSeconds: 1 });
   const { ctx, page } = await openGame(fake);
