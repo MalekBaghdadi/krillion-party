@@ -122,6 +122,23 @@ export function createGame({ now = Date.now, maxPlayers = 8, maxAttempts = 5 } =
 
   const allResolved = () => players.every((p) => p.round?.status);
 
+  // The player whose accepted answer was typed first so far (players are in join order, so ties keep
+  // the earlier joiner). Once everyone has resolved this is the race winner.
+  function firstAccepted() {
+    let first = null;
+    for (const p of players) {
+      if (p.round?.status === 'accepted' && (!first || p.round.receivedAt < first.round.receivedAt)) first = p;
+    }
+    return first;
+  }
+
+  // Who is ahead in this question's race right now, with the answer Krillion accepted. Used to put
+  // that answer on the big screen as soon as it is known.
+  function leader() {
+    const p = firstAccepted();
+    return p ? { playerId: p.id, answer: p.round.result.answer } : null;
+  }
+
   function closePrompt() {
     if (phase !== 'prompt') throw new GameError('There is no open prompt.');
     const entries = players.map((p) => {
@@ -129,10 +146,7 @@ export function createGame({ now = Date.now, maxPlayers = 8, maxAttempts = 5 } =
       const status = r.status ?? 'timeout';
       return { playerId: p.id, name: p.name, status, ...(status === 'accepted' ? r.result : {}) };
     });
-    let winner = null;
-    for (const p of players) { // players are in join order, so ties keep the earlier joiner
-      if (p.round.status === 'accepted' && (!winner || p.round.receivedAt < winner.round.receivedAt)) winner = p;
-    }
+    const winner = firstAccepted();
     for (const p of players) if (p.round.status === 'accepted') p.score += p.round.result.points;
     if (winner) winner.raceWins += 1;
     reveal = { winnerId: winner?.id ?? null, entries };
@@ -179,5 +193,5 @@ export function createGame({ now = Date.now, maxPlayers = 8, maxAttempts = 5 } =
     };
   }
 
-  return { join, playerByToken, removePlayer, begin, openPrompt, recordAttempt, recordResult, allResolved, closePrompt, finish, reset, snapshot };
+  return { join, playerByToken, removePlayer, begin, openPrompt, recordAttempt, recordResult, allResolved, leader, closePrompt, finish, reset, snapshot };
 }

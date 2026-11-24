@@ -40,10 +40,15 @@ const waitText = (page, sel, re, timeout = 20000) => page.waitForFunction(([s, s
   const el = document.querySelector(s);
   return Boolean(el && el.getClientRects().length && new RegExp(src, flags).test(el.innerText));
 }, [sel, re.source, re.flags], { timeout });
-const send = async (page, answer) => { await page.getByLabel('Your answer').fill(answer); await page.getByRole('button', { name: 'Send' }).click(); };
+// One stage of a long game. Plain steps rather than node:test subtests: Playwright calls made inside
+// a subtest fail with "browser has been closed" on Node 24. A failure says which step it was.
+const step = async (name, fn) => {
+  try { await fn(); } catch (err) { err.message = `[step: ${name}] ${err.message}`; throw err; }
+};
+const send = async (page, answer) => { await page.getByLabel('Your answer').fill(answer); await page.getByRole('button', { name: /^dive$/i }).click(); };
 
-test('a full 7-question game with three phones', () => setup({ fakeOpts: { timerSeconds: 20 } }, ['Ann', 'Bo', 'Cy'], async ({ host, phones }) => {
-  await test('lobby shows the QR and each joined player', async () => {
+test('a full 7-question game with three phones', () => setup({ fakeOpts: { timerSeconds: 20 } }, ['Ann', 'Bo', 'Cy'], async ({ stack, host, phones }) => {
+  await step('lobby shows the QR and each joined player', async () => {
     await host.locator('#qr').waitFor();
     await until(async () => host.evaluate(() => document.querySelector('#qr').naturalWidth > 0));
     assert.match(await host.locator('#playUrl').innerText(), /\/play$/);
@@ -52,24 +57,31 @@ test('a full 7-question game with three phones', () => setup({ fakeOpts: { timer
     await shot(host, '1-lobby');
   });
 
-  await test('START opens sessions, then shows the prompt and countdown', async () => {
+  await step('START opens sessions, then shows the prompt and countdown', async () => {
     await host.getByRole('button', { name: /start game/i }).click();
     await waitText(host, '#hostPrompt', /Name a noodle dish/);
-    assert.match(await host.locator('#hostQ').innerText(), /Question 1 of 7/);
+    assert.match(await host.locator('#hostQ').innerText(), /question 1 of 7/i); // shown in capitals
     await host.waitForFunction(() => /^\d+$/.test(document.querySelector('#hostTimer').innerText));
+    // the real Krillion page, live, fills the host screen
+    await host.locator('#tvScreen').waitFor();
+    await until(async () => host.evaluate(() => document.querySelector('#tvStream').naturalWidth === 1280));
+    await shot(host, '2a-live-screen');
   });
 
-  await test('host sees who has locked in, never the answers', async () => {
+  await step('host sees who has locked in, never the answers', async () => {
     await phones[0].getByText('Name a noodle dish').waitFor();
     await send(phones[0], 'ramen');
     await host.locator('#hostChips .chip.locked').waitFor();
     assert.equal(await host.locator('#hostChips .chip.locked').count(), 1);
     assert.match(await host.locator('#hostLocked').innerText(), /1 of 3/);
     assert.equal(/ramen/i.test(await host.locator('#stage').innerText()), false);
+    // Ann's answer was accepted first, so the live Krillion window now shows its own result card for it
+    await until(async () => /PLANKTON/.test(await stack.tvSessions[0].page.innerText('body')));
+    assert.match(await stack.tvSessions[0].page.innerText('body'), /Ramen/);
     await shot(host, '2-question');
   });
 
-  await test('reveal marks the race winner and shows tiers and points', async () => {
+  await step('reveal marks the race winner and shows tiers and points', async () => {
     await send(phones[1], 'pho');
     await send(phones[2], 'champon');
     await waitText(host, '#hostFlash', /Ann was first/);
@@ -82,10 +94,10 @@ test('a full 7-question game with three phones', () => setup({ fakeOpts: { timer
     await shot(host, '3-reveal');
   });
 
-  await test('after 7 questions the leaderboard totals equal the points, and Ann won every race', async () => {
+  await step('after 7 questions the leaderboard totals equal the points, and Ann won every race', async () => {
     await host.getByRole('button', { name: /next question/i }).click();
     for (let i = 1; i < 7; i += 1) {
-      await waitText(host, '#hostQ', new RegExp(`Question ${i + 1} of 7`));
+      await waitText(host, '#hostQ', new RegExp(`question ${i + 1} of 7`, 'i'));
       for (const [k, page] of phones.entries()) {
         await page.getByText(new RegExp(`Question ${i + 1} of 7`)).waitFor();
         await send(page, ['ramen', 'pho', 'champon'][k]);
@@ -105,11 +117,36 @@ test('a full 7-question game with three phones', () => setup({ fakeOpts: { timer
     await shot(host, '4-finished');
   });
 
-  await test('Play again returns to the lobby with the players kept', async () => {
+  await step('Play again returns to the lobby with the players kept', async () => {
     await host.getByRole('button', { name: /play again/i }).click();
     await host.getByRole('button', { name: /start game/i }).waitFor();
     assert.equal(await host.locator('#lobbyPlayers .chip').count(), 3);
   });
+}));
+
+test('the live screen follows the winner and moves on with the game', () => setup({ fakeOpts: { timerSeconds: 20 } }, ['Ann', 'Bo'], async ({ stack, host, phones }) => {
+  await host.getByRole('button', { name: /start game/i }).click();
+  await host.locator('#tvScreen').waitFor();
+  const tvText = () => stack.tvSessions[0].page.innerText('body');
+  await until(async () => /Name a noodle dish/.test(await tvText())); // the real prompt, before anyone answers
+  await phones[0].getByText('Name a noodle dish').waitFor();
+  await send(phones[0], 'pho'); // RARE
+  await send(phones[1], 'champon'); // ONE IN A KRILLION, but typed second
+  await waitText(host, '#hostFlash', /Ann was first/);
+  await until(async () => /RARE/.test(await tvText())); // the screen shows the winner's card, not the last answer in
+  assert.equal(/ONE IN A KRILLION/.test(await tvText()), false);
+  await host.getByRole('button', { name: /next question/i }).click();
+  await until(async () => /Name a species of great ape/.test(await tvText())); // and moves on with everyone else
+  assert.equal(await host.locator('#tvScreen').isVisible(), true);
+  assert.equal(stack.tvSessions.length, 1); // one big-screen window for the whole game
+}));
+
+test('without a big screen the host page keeps its simple layout', () => setup({ tv: false, fakeOpts: { timerSeconds: 20 } }, ['Ann'], async ({ host, phones }) => {
+  await host.getByRole('button', { name: /start game/i }).click();
+  await waitText(host, '#hostPrompt', /Name a noodle dish/);
+  assert.equal(await host.locator('#tvScreen').isVisible(), false);
+  assert.equal(await host.evaluate(() => document.getElementById('stage').classList.contains('has-tv')), false);
+  assert.ok(await host.locator('#hostTimer').isVisible()); // the big countdown is back on the page itself
 }));
 
 test('Space starts the game and Enter moves on', () => setup({ fakeOpts: { timerSeconds: 20 } }, ['Ann'], async ({ host, phones }) => {
@@ -122,7 +159,7 @@ test('Space starts the game and Enter moves on', () => setup({ fakeOpts: { timer
   await host.locator('#hostFlash').waitFor();
   await host.locator('body').click({ position: { x: 5, y: 5 } });
   await host.keyboard.press('Enter');
-  await waitText(host, '#hostQ', /Question 2 of 7/);
+  await waitText(host, '#hostQ', /question 2 of 7/i);
 }));
 
 test('Test setup explains a locked game, and passes on a free one', async () => {
@@ -143,7 +180,7 @@ test('Settings saves the game number and says the unlock link is saved, without 
   await host.locator('#gameNumber').fill('3');
   await host.locator('#unlockLink').fill('https://krillion.io/unlock?session_id=cs_live_SECRET123');
   await host.getByRole('button', { name: /^save/i }).click();
-  await waitText(host, '#linkStatus', /unlock link saved/i);
+  await waitText(host, '#linkStatus', /✔ unlock link saved/i); // not just "No unlock link saved", which also matches the shorter text
   assert.equal(await host.locator('#unlockLink').inputValue(), '');
   const everything = await host.evaluate(() => document.body.innerText + [...document.querySelectorAll('input')].map((i) => i.value).join(' ') + document.documentElement.innerHTML);
   assert.equal(everything.includes('SECRET123'), false);

@@ -8,6 +8,7 @@ let busy = false;
 let lastPhase = null;
 let toastTimer = null;
 let shownPlayUrl = null;
+let streaming = false;
 
 function toast(message) {
   $('toast').textContent = message;
@@ -49,8 +50,29 @@ async function loadSettings() {
 
 const nameSpan = (name) => { const n = el('span', 'nm', name); n.setAttribute('dir', 'auto'); return n; };
 
+// The real Krillion page, live, while a question is on. Streams only while it is on screen, and
+// the page falls back to its simple layout whenever the server says the big screen isn't there.
+function renderScreen() {
+  const on = Boolean(snap.tv) && (snap.phase === 'prompt' || snap.phase === 'reveal');
+  $('stage').classList.toggle('has-tv', on);
+  $('tvScreen').classList.toggle('hidden', !on);
+  if (on && !streaming) {
+    streaming = true;
+    $('tvStream').src = `/tv.mjpeg?${Date.now()}`;
+  } else if (!on && streaming) {
+    streaming = false;
+    $('tvStream').removeAttribute('src');
+  }
+}
+// If the video connection drops (say the app restarted), pick it up again.
+$('tvStream').addEventListener('error', () => {
+  if (!streaming) return;
+  setTimeout(() => { if (streaming) $('tvStream').src = `/tv.mjpeg?${Date.now()}`; }, 1000);
+});
+
 function render() {
   for (const [phase, id] of Object.entries(SECTIONS)) $(id).classList.toggle('hidden', snap.phase !== phase);
+  renderScreen();
   $('notice').textContent = snap.notice ?? '';
   $('notice').classList.toggle('hidden', !snap.notice);
   ({ lobby: renderLobby, starting: renderStarting, prompt: renderPrompt, reveal: renderReveal, finished: renderFinished }[snap.phase])();

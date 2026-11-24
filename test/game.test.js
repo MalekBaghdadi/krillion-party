@@ -250,3 +250,16 @@ test('finish then begin again zeroes scores; reset keeps players', () => {
   assert.deepEqual(snap.players.map((p) => [p.name, p.score, p.raceWins, p.errored]), [['a', 0, 0, false], ['b', 0, 0, false]]);
   assert.equal(snap.reveal, null);
 });
+
+test('leader() is the earliest typist among the accepted so far, and null before anyone is accepted', () => {
+  const { g, c, ids } = started(['Ann', 'Bo', 'Cy']);
+  assert.equal(g.leader(), null);
+  c.tick(10); g.recordAttempt(ids[1], 'pho');
+  c.tick(10); g.recordAttempt(ids[0], 'ramen');
+  g.recordResult(ids[0], accepted(10, 'Ramen')); // Ann typed second but was accepted first
+  assert.deepEqual(g.leader(), { playerId: ids[0], answer: 'Ramen' });
+  g.recordResult(ids[1], accepted(60, 'Pho')); // Bo typed earlier: now he leads
+  assert.deepEqual(g.leader(), { playerId: ids[1], answer: 'Pho' });
+  g.recordResult(ids[2], { status: 'timeout' });
+  assert.equal(g.closePrompt().winnerId, ids[1]); // the same rule decides the real winner
+});

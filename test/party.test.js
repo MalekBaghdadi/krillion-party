@@ -245,3 +245,109 @@ test('the first countdown reading arrives immediately, not after a full poll int
   await until(() => party.snapshot().timeLeft === 7, 1000);
   await party.stop();
 });
+
+// ---- the big screen (see tv.js): a scripted window, so timing is exact ----
+function stubTv(over = {}) {
+  const tv = {
+    live: false, shown: [], advanced: 0, closed: 0,
+    start: async () => { if (over.start) throw over.start; tv.live = true; },
+    show: async (answer) => { tv.shown.push(answer); },
+    advance: async () => { tv.advanced += 1; if (over.advanceFails) tv.live = false; return tv.live; },
+    close: async () => { tv.live = false; tv.closed += 1; },
+  };
+  return tv;
+}
+function tvParty(pool, tv, names, extra = {}) {
+  const game = createGame();
+  const emits = { n: 0 };
+  const party = createParty({ game, getPool: async () => pool, getTv: async () => tv, emit: () => { emits.n += 1; }, pollMs: 50, spotlightGraceMs: 40, ...extra });
+  const ids = names.map((n) => party.join(n).id);
+  return { party, ids, emits, phase: () => party.snapshot().phase };
+}
+
+test('big screen: the race leader\'s answer goes onto it once per question, and the snapshot says it is live', async () => {
+  const tv = stubTv();
+  const { party, ids } = tvParty(stubPool(), tv, ['Ann', 'Bo']);
+  await party.start();
+  assert.equal(party.snapshot().tv, true);
+  await party.answer(ids[0], 'ramen');
+  assert.deepEqual(tv.shown, []); // waits a moment in case an earlier typist is still being checked
+  await until(() => tv.shown.length === 1);
+  assert.deepEqual(tv.shown, ['ramen']);
+  await party.answer(ids[1], 'pho');
+  await sleep(120);
+  assert.deepEqual(tv.shown, ['ramen']); // the question already has its winner on screen
+  await party.stop();
+});
+
+test('big screen: when everyone has resolved it shows the winner straight away', async () => {
+  const tv = stubTv();
+  const { party, ids } = tvParty(stubPool(), tv, ['Ann'], { spotlightGraceMs: 10000 });
+  await party.start();
+  await party.answer(ids[0], 'ramen');
+  assert.deepEqual(tv.shown, ['ramen']); // no waiting for the grace period
+  await party.stop();
+});
+
+test('big screen: an earlier typist who is checked a little later still wins the screen', async () => {
+  const tv = stubTv();
+  const pool = stubPool({ submit: async (id, answer) => { await sleep(answer === 'ramen' ? 100 : 5); return { status: 'accepted', tier: 'PLANKTON', answer, points: 10, flavor: '' }; } });
+  const { party, ids } = tvParty(pool, tv, ['Ann', 'Bo'], { spotlightGraceMs: 250 });
+  await party.start();
+  const ann = party.answer(ids[0], 'ramen'); // typed first, but Krillion takes longer to check it
+  await sleep(15);
+  const bo = party.answer(ids[1], 'pho'); // typed second, accepted first
+  await Promise.all([ann, bo]);
+  await until(() => tv.shown.length > 0);
+  assert.deepEqual(tv.shown, ['ramen']); // the same rule that decides the real winner
+  assert.equal(party.snapshot().reveal.winnerId, ids[0]);
+  await party.stop();
+});
+
+test('big screen: nobody accepted means nothing is shown, and the next question moves it on', async () => {
+  const tv = stubTv();
+  const pool = stubPool({ submit: async () => ({ status: 'timeout' }) });
+  const { party, ids, phase } = tvParty(pool, tv, ['Ann']);
+  await party.start();
+  await party.answer(ids[0], 'zzz');
+  await until(() => phase() === 'reveal');
+  assert.deepEqual(tv.shown, []);
+  await party.next();
+  assert.equal(tv.advanced, 1);
+  await party.stop();
+});
+
+test('big screen: if it falls out of step the host page is told and the game carries on', async () => {
+  const tv = stubTv({ advanceFails: true });
+  const { party, ids, emits, phase } = tvParty(stubPool(), tv, ['Ann']);
+  await party.start();
+  await party.answer(ids[0], 'ramen');
+  await until(() => phase() === 'reveal');
+  const before = emits.n;
+  await party.next();
+  await until(() => party.snapshot().tv === false);
+  assert.ok(emits.n > before); // the page hears about it, so it can go back to its simple layout
+  assert.equal(party.snapshot().phase, 'prompt'); // and the game itself kept going
+  await party.stop();
+});
+
+test('big screen: a window that will not open never stops the game', async () => {
+  const tv = stubTv({ start: new Error('no memory') });
+  const logs = [];
+  const { party, phase } = tvParty(stubPool(), tv, ['Ann'], { log: (l) => logs.push(l) });
+  await party.start();
+  assert.equal(phase(), 'prompt');
+  assert.equal(party.snapshot().tv, false);
+  assert.equal(party.snapshot().notice, null); // nothing alarming on the TV
+  assert.match(logs[0], /big screen could not open/);
+  await party.stop();
+});
+
+test('big screen: it is closed when the game is stopped', async () => {
+  const tv = stubTv();
+  const { party } = tvParty(stubPool(), tv, ['Ann']);
+  await party.start();
+  await party.stop();
+  assert.equal(tv.closed, 1);
+  assert.equal(party.snapshot().tv, false);
+});

@@ -18,6 +18,7 @@ const publicDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kp-public-'));
 fs.writeFileSync(path.join(publicDir, 'index.html'), '<!doctype html><title>host</title>host page');
 fs.writeFileSync(path.join(publicDir, 'play.html'), '<!doctype html><title>play</title>play page');
 fs.writeFileSync(path.join(publicDir, 'style.css'), 'body{}');
+fs.writeFileSync(path.join(publicDir, 'vt323.woff2'), 'wOF2fake');
 
 function stubParty() {
   const calls = [];
@@ -260,4 +261,51 @@ test('the host can pick which network address the QR code points at', async () =
     assert.equal(refused.status, 400);
     assert.equal(chosen, '10.0.0.4'); // an address that isn't this computer's is never accepted
   } finally { await second.close(); }
+});
+
+test('the pixel font is served as a font', async () => {
+  const r = await local('GET', '/vt323.woff2');
+  assert.equal(r.status, 200);
+  assert.equal(r.headers['content-type'], 'font/woff2');
+});
+
+// The big screen as live video (an endless multipart response).
+function readStream(srvPort, { host = '127.0.0.1', after } = {}) {
+  return new Promise((resolve, reject) => {
+    const req = http.get({ host, port: srvPort, path: '/tv.mjpeg' }, (res) => {
+      const chunks = [];
+      res.on('data', (c) => chunks.push(c));
+      setTimeout(() => after?.(), 120);
+      setTimeout(() => { req.destroy(); resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(chunks) }); }, 400);
+    });
+    req.on('error', (err) => { if (err.code !== 'ECONNRESET') reject(err); });
+  });
+}
+
+test('/tv.mjpeg streams the latest picture at once and every new one after it', async () => {
+  const { createFeed } = await import('../src/feed.js');
+  const feed = createFeed();
+  feed.push(Buffer.from('FRAME-ONE'));
+  const withFeed = createServer({ party, getConfig: loadConfig, saveConfig, runCheck: async () => ({ ok: true, lines: [] }), lan, publicDir, feed });
+  const p = await withFeed.listen(0);
+  try {
+    const got = await readStream(p, { after: () => feed.push(Buffer.from('FRAME-TWO')) });
+    assert.equal(got.status, 200);
+    assert.match(got.headers['content-type'], /^multipart\/x-mixed-replace; boundary=kpframe$/);
+    const text = got.body.toString('latin1');
+    assert.ok(text.indexOf('FRAME-ONE') > -1 && text.indexOf('FRAME-TWO') > text.indexOf('FRAME-ONE'), 'both frames, in order');
+    assert.match(text, /Content-Type: image\/jpeg\r\nContent-Length: 9\r\n/);
+  } finally { await withFeed.close(); }
+});
+
+test('/tv.mjpeg is for the host computer only, and absent without a big screen', async () => {
+  const { createFeed } = await import('../src/feed.js');
+  const withFeed = createServer({ party, getConfig: loadConfig, saveConfig, runCheck: async () => ({ ok: true, lines: [] }), lan, publicDir, feed: createFeed() });
+  const p = await withFeed.listen(0);
+  try {
+    if (lan) assert.equal((await readStream(p, { host: lan })).status, 403); // a phone on the Wi-Fi can't watch it
+    const foreign = await new Promise((resolve) => http.get({ host: '127.0.0.1', port: p, path: '/tv.mjpeg', headers: { host: 'evil.example' } }, (res) => { res.resume(); resolve(res.statusCode); }));
+    assert.equal(foreign, 403);
+  } finally { await withFeed.close(); }
+  assert.equal((await local('GET', '/tv.mjpeg')).status, 404); // the shared test server has no feed
 });

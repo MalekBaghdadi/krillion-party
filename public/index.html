@@ -3,8 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#061826">
+  <meta name="theme-color" content="#0f3d66">
   <title>Krillion Party: host</title>
+  <link rel="preload" href="/vt323.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/style.css">
 </head>
 <body class="host">
@@ -18,6 +19,9 @@
     <div id="toast" class="toast hidden" role="alert"></div>
 
     <div id="stage">
+      <!-- The real Krillion page, live. Only shown (and only streamed) while a question is on. -->
+      <div id="tvScreen" class="tvscreen hidden"><img id="tvStream" alt="The live Krillion game screen"></div>
+
       <section id="lobby" class="stage-lobby">
         <div class="card join-card">
           <h2>Join on your phone</h2>

@@ -10,20 +10,35 @@ const { createGame } = await import('../src/game.js');
 const { createPool } = await import('../src/pool.js');
 const { createParty } = await import('../src/party.js');
 const { createServer } = await import('../src/server.js');
+const { createFeed } = await import('../src/feed.js');
+const { createTv } = await import('../src/tv.js');
+const { openSession } = await import('../src/krillion.js');
 const { startFake } = await import('./fake-krillion.js');
 
 const publicDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 
-export async function startStack({ browser, fakeOpts = {}, config = {}, addresses = [] } = {}) {
+// `tv: false` leaves out the big-screen window, so the host page keeps its simple layout.
+export async function startStack({ browser, fakeOpts = {}, config = {}, addresses = [], tv = true } = {}) {
   const fake = await startFake(fakeOpts);
   const cfg = () => ({ ...loadConfig(), ...config });
   const openOptions = { baseUrl: fake.url, stepTimeoutMs: 4000 };
   const game = createGame();
+  const feed = createFeed();
+  const tvSessions = []; // the big-screen windows, so a test can look at what the TV shows
+  const getTv = tv ? async () => createTv({
+    open: async (options) => {
+      const session = await openSession(browser, { ...openOptions, ...options, gameNumber: cfg().gameNumber, unlockLink: cfg().unlockLink });
+      tvSessions.push(session);
+      return session;
+    },
+    feed,
+  }) : undefined;
   let server;
   let chosen = addresses[0] ?? null;
   const party = createParty({
     game,
     getPool: async () => createPool({ browser, config: cfg(), openOptions }),
+    getTv,
     emit: () => server?.broadcast(),
     pollMs: 200,
   });
@@ -36,13 +51,14 @@ export async function startStack({ browser, fakeOpts = {}, config = {}, addresse
     addresses: () => addresses,
     setLan: (ip) => { chosen = ip; },
     publicDir,
+    feed,
   });
   const port = await server.listen(0);
   const url = `http://127.0.0.1:${port}`;
   // Host actions, as the host page would send them (loopback, no Origin).
   const host = async (route, body = {}) => (await fetch(`${url}${route}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })).json();
   return {
-    url, host, party, fake,
+    url, host, party, fake, tvSessions,
     async close() { await party.stop(); await server.close(); await fake.close(); },
   };
 }

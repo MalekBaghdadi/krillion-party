@@ -177,6 +177,18 @@ export class KrillionSession {
     return { done: false, prompt: this.prompt };
   }
 
+  // Sends a picture of this window (JPEG buffers, as fast as it repaints) to onFrame.
+  // The big screen on the host computer is this, so people see the real Krillion page.
+  async startScreencast(onFrame, { maxWidth = 1280, maxHeight = 720, quality = 80 } = {}) {
+    const cdp = await this.context.newCDPSession(this.page);
+    this.cdp = cdp;
+    cdp.on('Page.screencastFrame', ({ data, sessionId }) => {
+      cdp.send('Page.screencastFrameAck', { sessionId }).catch(() => {}); // Chrome waits for this before the next frame
+      onFrame(Buffer.from(data, 'base64'));
+    });
+    await cdp.send('Page.startScreencast', { format: 'jpeg', quality, maxWidth, maxHeight, everyNthFrame: 1 });
+  }
+
   async close() {
     await this.context.close().catch(() => {});
   }
@@ -245,8 +257,8 @@ export class KrillionSession {
 }
 
 export async function openSession(browser, opts = {}) {
-  const { baseUrl = 'https://krillion.io', gameNumber = 1, unlockLink = '', stepTimeoutMs = 20000, debugDir } = opts;
-  const context = await browser.newContext({ viewport: { width: 1024, height: 768 } });
+  const { baseUrl = 'https://krillion.io', gameNumber = 1, unlockLink = '', stepTimeoutMs = 20000, debugDir, viewport = { width: 1024, height: 768 } } = opts;
+  const context = await browser.newContext({ viewport });
   const page = await context.newPage();
   page.setDefaultTimeout(stepTimeoutMs);
   const session = new KrillionSession(context, page, { stepTimeoutMs, debugDir });

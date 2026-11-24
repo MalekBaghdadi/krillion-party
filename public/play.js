@@ -1,6 +1,6 @@
 // The phone page. It builds nothing on each update: the screens exist in play.html and only their
 // text changes, so the countdown ticking never wipes what someone is typing.
-import { $, el, fillBoard, ordinal, postJson, ranked, tierBadge } from '/common.js';
+import { $, el, fillBoard, ordinal, postJson, ranked, tierLevel } from '/common.js';
 
 const SCREENS = ['connecting', 'join', 'closed', 'lobby', 'starting', 'question', 'reveal', 'final'];
 const show = (name) => SCREENS.forEach((s) => $(s).classList.toggle('hidden', s !== name));
@@ -35,6 +35,7 @@ function render() {
     return;
   }
   if (!snap.you) {
+    $('hud').classList.add('hidden');
     if (snap.phase === 'lobby') {
       show('join');
       $('joinNote').classList.toggle('hidden', !wasRemoved);
@@ -44,7 +45,24 @@ function render() {
     return;
   }
   if (snap.phase !== 'prompt') promptKey = null;
+  renderHud();
   ({ lobby: renderLobby, starting: () => show('starting'), prompt: renderQuestion, reveal: renderReveal, finished: renderFinal }[snap.phase] ?? (() => show('connecting')))();
+}
+
+// The strip along the top, like the game's: your rank, how far through the 7 prompts, your score.
+function renderHud() {
+  const playing = ['prompt', 'reveal', 'finished'].includes(snap.phase);
+  $('hud').classList.toggle('hidden', !playing);
+  if (!playing) return;
+  const order = ranked(snap.players);
+  const pos = order.findIndex((p) => p.id === snap.you.id) + 1;
+  $('hudRank').textContent = `${pos}/${order.length}`;
+  $('hudScore').textContent = String(order[pos - 1]?.score ?? 0);
+  const { prompt } = snap;
+  const total = prompt?.total ?? 7;
+  const through = snap.phase === 'prompt' ? prompt.index : snap.phase === 'finished' ? total : prompt.index + 1; // prompts already played
+  $('pips').replaceChildren(...Array.from({ length: total }, (_, i) => el('span', `pip${i < through ? ' done' : i === through ? ' now' : ''}`)));
+  $('hudCount').textContent = snap.phase === 'finished' ? 'Done' : `${Math.min(through + (snap.phase === 'prompt' ? 1 : 0), total)} / ${total}`;
 }
 
 function renderLobby() {
@@ -66,14 +84,14 @@ function statusFor(you) {
     case 'error': return { text: "Your Krillion window had a problem. You'll be back on the next question.", tone: 'bad' };
     default:
       if (you.suggestion) { // Krillion's closest answer: the box already holds it, Send confirms
-        return { text: `Did you mean “${you.suggestion.text}”? Tap Send to use it, or change it.`, tone: 'hint' };
+        return { text: `Did you mean “${you.suggestion.text}”? Tap Dive to use it, or change it.`, tone: 'hint' };
       }
       if (you.rejected) {
         return you.attemptsLeft > 0
           ? { text: `“${you.rejected}” wasn’t recognised. Try another! (${you.attemptsLeft} ${you.attemptsLeft === 1 ? 'try' : 'tries'} left)`, tone: 'bad' }
           : { text: 'No tries left. Waiting for the clock…', tone: 'bad' };
       }
-      return { text: 'Type one answer and press Send.', tone: '' };
+      return { text: 'Type one answer and press Dive.', tone: '' };
   }
 }
 
@@ -135,13 +153,15 @@ function renderReveal() {
   const mine = reveal.entries.find((e) => e.playerId === you.id);
   const box = $('revealMine');
   box.replaceChildren();
-  if (mine?.status === 'accepted') {
-    const row = el('div', 'mine');
-    const answer = el('span', '', `Your answer: “${mine.answer}”`);
+  if (mine?.status === 'accepted') { // the same card the real game shows: tier, your answer, points
+    const tag = el('div', 'tag');
+    const tier = el('div', 'tname', mine.tier);
+    tier.dataset.level = String(tierLevel(mine.points ?? 0));
+    const answer = el('div', 'tans', `“${mine.answer}”`);
     answer.setAttribute('dir', 'auto');
-    row.append(answer, tierBadge(mine), el('span', 'points', `+${mine.points} points`));
-    box.append(row);
-    if (mine.flavor) box.append(el('p', 'muted', mine.flavor));
+    tag.append(tier, answer, el('div', 'tpts', `+${mine.points} PTS`));
+    if (mine.flavor) tag.append(el('div', 'tsub', mine.flavor));
+    box.append(tag);
   } else if (mine?.status === 'error') {
     box.append(el('p', 'muted', 'Your Krillion window had a problem, so you sat this one out.'));
   } else {

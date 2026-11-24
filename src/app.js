@@ -3,12 +3,14 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homeDir, loadConfig, saveConfig } from './config.js';
+import { createFeed } from './feed.js';
 import { createGame } from './game.js';
-import { launchBrowser } from './krillion.js';
+import { launchBrowser, openSession } from './krillion.js';
 import { lanAddresses, routedAddress } from './net.js';
 import { createParty } from './party.js';
 import { createPool } from './pool.js';
 import { createServer } from './server.js';
+import { createTv } from './tv.js';
 
 const publicDir = fileURLToPath(new URL('../public/', import.meta.url));
 
@@ -40,12 +42,21 @@ export async function startApp({ open = true, launch = launchBrowser, getAddress
     if (!browser?.isConnected()) browser = await launch({ headless: true });
     return browser;
   };
+  const log = (line) => console.error(`[krillion] ${line}`); // technical detail stays in the terminal, off the TV
   const makePool = async () => createPool({
     browser: await getBrowser(),
     config: loadConfig(),
     openOptions: { debugDir },
-    log: (line) => console.error(`[krillion] ${line}`), // technical detail stays in the terminal, off the TV
+    log,
   });
+
+  // The big screen: the real Krillion page, as live video on the host page (see tv.js).
+  const feed = createFeed();
+  const makeTv = async () => {
+    const browser = await getBrowser();
+    const { gameNumber, unlockLink } = loadConfig();
+    return createTv({ open: (options) => openSession(browser, { debugDir, ...options, gameNumber, unlockLink }), feed, log });
+  };
 
   // Which address the QR code points at: the best guess, unless the host picked another one.
   // Re-checked every few seconds because Wi-Fi can connect after the app starts.
@@ -56,7 +67,7 @@ export async function startApp({ open = true, launch = launchBrowser, getAddress
   const currentLan = () => (chosen && addresses.includes(chosen) ? chosen : addresses[0] ?? null);
 
   let server;
-  const party = createParty({ game, getPool: makePool, emit: () => server?.broadcast() });
+  const party = createParty({ game, getPool: makePool, getTv: makeTv, emit: () => server?.broadcast(), log });
   server = createServer({
     party,
     getConfig: loadConfig,
@@ -68,6 +79,7 @@ export async function startApp({ open = true, launch = launchBrowser, getAddress
     addresses: () => addresses,
     setLan: (ip) => { chosen = ip; },
     publicDir,
+    feed,
   });
 
   const port = await listenWithFallback(server, config.port);

@@ -12,8 +12,9 @@ const MAX_BODY = 1024;
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.json': 'application/json; charset=utf-8',
-  '.webmanifest': 'application/manifest+json; charset=utf-8',
+  '.webmanifest': 'application/manifest+json; charset=utf-8', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8',
 };
+const FRAME_BOUNDARY = 'kpframe';
 const CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'";
 
 const REFUSED = {
@@ -48,7 +49,7 @@ async function readJson(req) {
 
 // `lan` is the address the QR code points at: a string, or a function when it can change while running.
 // `addresses` lists the choices offered to the host; `setLan(ip)` records their pick.
-export function createServer({ party, getConfig, saveConfig, runCheck, lan, addresses = lanAddresses, setLan, publicDir }) {
+export function createServer({ party, getConfig, saveConfig, runCheck, lan, addresses = lanAddresses, setLan, publicDir, feed = null }) {
   let port = 0;
   const clients = new Set(); // open event streams: {res, token}
   let pingTimer = null;
@@ -89,6 +90,25 @@ export function createServer({ party, getConfig, saveConfig, runCheck, lan, addr
     clients.add(client);
     req.on('close', () => clients.delete(client));
     res.write(`retry: 1000\n\n${snapshotFor(client)}`);
+  }
+
+  // The big screen as live video: a never-ending multipart response that an <img> shows as moving
+  // pictures. Host computer only, and a slow viewer skips frames rather than falling behind.
+  function tvStream(req, res) {
+    if (!feed || !isLocalRequest(req)) return send(res, feed ? 403 : 404, 'Not available', { 'content-type': 'text/plain; charset=utf-8' });
+    res.writeHead(200, {
+      'content-type': `multipart/x-mixed-replace; boundary=${FRAME_BOUNDARY}`,
+      'cache-control': 'no-store', connection: 'close', 'x-content-type-options': 'nosniff',
+    });
+    const write = (frame) => {
+      if (res.destroyed || res.writableNeedDrain) return;
+      res.write(Buffer.concat([Buffer.from(`--${FRAME_BOUNDARY}\r\nContent-Type: image/jpeg\r\nContent-Length: ${frame.length}\r\n\r\n`), frame, Buffer.from('\r\n')]));
+    };
+    const first = feed.latest();
+    if (first) write(first);
+    const stop = feed.subscribe(write);
+    req.on('close', stop);
+    res.on('close', stop);
   }
 
   async function host(req, res, url) {
@@ -144,6 +164,7 @@ export function createServer({ party, getConfig, saveConfig, runCheck, lan, addr
       return send(res, 200, svg, { 'content-type': 'image/svg+xml' });
     }
     if (req.method === 'GET' && pathname === '/api/events') return events(req, res, url);
+    if (req.method === 'GET' && pathname === '/tv.mjpeg') return tvStream(req, res);
 
     if (pathname.startsWith('/api/host/')) return host(req, res, url);
 

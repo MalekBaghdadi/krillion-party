@@ -13,7 +13,7 @@ const SHOTS = process.env.KP_SCREENSHOTS ? path.join(import.meta.dirname, '..', 
 const shot = async (page, name) => { if (SHOTS) { fs.mkdirSync(SHOTS, { recursive: true }); await page.screenshot({ path: path.join(SHOTS, `phone-${name}.png`) }); } };
 
 async function withStack(opts, fn) {
-  const stack = await startStack({ browser, ...opts });
+  const stack = await startStack({ browser, tv: false, ...opts }); // phones never look at the big screen
   const contexts = [];
   const phone = async () => {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
@@ -77,32 +77,32 @@ test('an unknown answer says so and can be retried; an accepted one locks in', (
   await stack.host('/api/host/start');
   await a.getByText('Name a noodle dish').waitFor();
   await a.getByLabel('Your answer').fill('zzz');
-  await a.getByRole('button', { name: 'Send' }).click();
+  await a.getByRole('button', { name: /^dive$/i }).click();
   await a.getByText(/wasn.t recognised/i).waitFor();
   assert.equal(await a.getByLabel('Your answer').isEnabled(), true);
   await shot(a, '4-try-again');
   await a.getByLabel('Your answer').fill('ramen');
-  await a.getByRole('button', { name: 'Send' }).click();
-  await a.getByText(/Locked in/i).waitFor();
+  await a.getByRole('button', { name: /^dive$/i }).click();
+  await a.locator('#status', { hasText: /Locked in/i }).waitFor();
   assert.equal(await a.getByLabel('Your answer').isDisabled(), true);
   await shot(a, '5-locked');
 }));
 
-test('a near-miss shows Krillion\'s suggestion with the box filled in, and Send confirms it', () => withStack({ fakeOpts: { timerSeconds: 20 } }, async (stack, phone) => {
+test('a near-miss shows Krillion\'s suggestion with the box filled in, and Dive confirms it', () => withStack({ fakeOpts: { timerSeconds: 20 } }, async (stack, phone) => {
   const page = await phone();
   await join(page, 'Sam');
   await page.locator('.chip').first().waitFor();
   await stack.host('/api/host/start');
   await page.getByText('Name a noodle dish').waitFor();
   await page.getByLabel('Your answer').fill('raman');
-  await page.getByRole('button', { name: 'Send' }).click();
+  await page.getByRole('button', { name: /^dive$/i }).click();
   await page.getByText(/Did you mean/i).waitFor();
   assert.match(await page.locator('#status').innerText(), /“Ramen”/);
   assert.equal(await page.getByLabel('Your answer').inputValue(), 'Ramen'); // ready to confirm
   assert.equal(await page.getByLabel('Your answer').isEnabled(), true);
   await shot(page, '4b-suggestion');
-  await page.getByRole('button', { name: 'Send' }).click();
-  await page.getByText(/Locked in/i).waitFor();
+  await page.getByRole('button', { name: /^dive$/i }).click();
+  await page.getByText(/You were first/i).waitFor(); // the only player: accepted, so the round closes and the results show
 }));
 
 test('the reveal shows your answer, tier, points and who was first', () => withStack({ fakeOpts: { timerSeconds: 20 } }, async (stack, phone) => {
@@ -114,9 +114,9 @@ test('the reveal shows your answer, tier, points and who was first', () => withS
   await stack.host('/api/host/start');
   await a.getByText('Name a noodle dish').waitFor();
   await a.getByLabel('Your answer').fill('ramen');
-  await a.getByRole('button', { name: 'Send' }).click();
+  await a.getByRole('button', { name: /^dive$/i }).click();
   await b.getByLabel('Your answer').fill('pho');
-  await b.getByRole('button', { name: 'Send' }).click();
+  await b.getByRole('button', { name: /^dive$/i }).click();
   await a.getByText(/You were first/i).waitFor();
   assert.match(await a.locator('#reveal').innerText(), /Ramen/);
   assert.match(await a.locator('#reveal').innerText(), /PLANKTON/);
@@ -135,8 +135,8 @@ test('a reload mid-game rejoins with the saved token', () => withStack({ fakeOpt
   await page.reload();
   await page.getByText('Name a noodle dish').waitFor();
   await page.getByLabel('Your answer').fill('ramen');
-  await page.getByRole('button', { name: 'Send' }).click();
-  await page.getByText(/Locked in/i).waitFor(); // still the same player: the server accepted the saved token
+  await page.getByRole('button', { name: /^dive$/i }).click();
+  await page.getByText(/You were first/i).waitFor(); // still the same player: the server accepted the saved token
 }));
 
 test('a phone arriving after the game started is told so and cannot join', () => withStack({ fakeOpts: { timerSeconds: 20 } }, async (stack, phone) => {
@@ -168,7 +168,7 @@ test('the final screen shows your rank and the leaderboard', () => withStack({ f
   for (let i = 0; i < 7; i += 1) {
     await until(async () => (await page.getByText(new RegExp(`Question ${i + 1} of 7`)).count()) > 0);
     await page.getByLabel('Your answer').fill('ramen');
-    await page.getByRole('button', { name: 'Send' }).click();
+    await page.getByRole('button', { name: /^dive$/i }).click();
     await page.getByText(/You were first/i).waitFor();
     await stack.host('/api/host/next');
   }

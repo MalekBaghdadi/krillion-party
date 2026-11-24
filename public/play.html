@@ -3,14 +3,21 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#061826">
+  <meta name="theme-color" content="#dcebf6">
   <title>Krillion Party</title>
+  <link rel="preload" href="/vt323.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
   <main class="wrap">
     <header class="brand"><span class="logo" aria-hidden="true">🦐</span><h1>Krillion Party</h1></header>
     <div id="banner" class="banner hidden" role="status">Reconnecting…</div>
+
+    <div id="hud" class="hud hidden">
+      <div class="pod"><span class="pod-label">Rank</span><span id="hudRank" class="pod-num">–</span></div>
+      <div class="pips"><div id="pips" class="pips-row" aria-hidden="true"></div><span id="hudCount" class="pips-label"></span></div>
+      <div class="pod right"><span class="pod-label">Score</span><span id="hudScore" class="pod-num score">0</span></div>
+    </div>
 
     <section id="connecting" class="card"><div class="spinner"></div><p class="muted" style="text-align:center">Connecting…</p></section>
 
@@ -42,17 +49,16 @@
     </section>
 
     <section id="question" class="card hidden">
-      <div class="qhead"><span id="qCount">Question</span><span id="timer" class="timer" aria-label="Seconds left">–</span></div>
+      <p id="qCount" class="eyebrow">Question</p>
       <p id="prompt" class="prompt-text" dir="auto"></p>
-      <form id="answerForm" autocomplete="off">
-        <div class="send-row">
-          <div>
-            <label for="answer">Your answer</label>
-            <input id="answer" type="text" maxlength="60" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send">
-          </div>
-          <button id="send" class="btn" type="submit">Send</button>
-        </div>
-      </form>
+      <div class="dock">
+        <span id="timer" class="timer" aria-label="Seconds left">–</span>
+        <form id="answerForm" class="dock-form" autocomplete="off">
+          <label for="answer" class="sr-only">Your answer</label>
+          <input id="answer" type="text" maxlength="60" placeholder="type one answer…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send">
+          <button id="send" class="btn" type="submit">Dive</button>
+        </form>
+      </div>
       <p id="status" class="status" aria-live="polite"></p>
       <p id="lockedCount" class="hint"></p>
     </section>

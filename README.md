@@ -52,6 +52,8 @@ Each question, everyone types an answer. The host presses **Next question** (or 
 - A wrong or unknown answer doesn't use up your turn: try again (up to 5 tries per question).
 - Typos are forgiven the way Krillion forgives them: if your answer is a little off, Krillion suggests its closest answer ("Did you mean Ramen?"). The box fills in with the suggestion, and you tap **Send** again to confirm it, or change it. A suggestion doesn't count as a try.
 - Behind the scenes the host computer opens one hidden Krillion window per player, so everyone really plays their own game.
+- **The host screen is the real Krillion.** While a question is on, the big screen shows the actual krillion.io game live: the real prompt and countdown, and when someone lands the first answer, Krillion's own result card for it, sinking and all. It is one more Krillion window on the same game that follows the race, with a small scoreboard beside it. If that window can't open, the host screen quietly falls back to a simple scoreboard layout and the game carries on.
+- **The phones look like the game too:** the same pixel font and ocean colours, a rank / progress / score strip across the top, the countdown dial and the pink **DIVE** button.
 
 ## Playing other Krillion games
 
